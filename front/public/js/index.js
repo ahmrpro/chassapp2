@@ -6,6 +6,58 @@ var $status = $('#status')
 var $pgn = $('#pgn')
 let gameOver = false;
 
+const timers = {
+    white: 900,  // 15 minutes in seconds
+    black: 900,
+    turn: 'white'
+  };
+  
+  function startTimer() {
+    window.timerInterval = setInterval(() => {
+      if (timers[timers.turn] > 0) {
+        timers[timers.turn]--;
+        displayTime();
+      } else {
+        clearInterval(window.timerInterval);
+        alert(timers.turn + " loses on time!");
+      }
+    }, 1000);
+  }
+  
+  function switchTurn() {
+    timers.turn = timers.turn === 'white' ? 'black' : 'white';
+  }
+  
+  function displayTime() {
+    document.getElementById('white-timer').textContent = formatTime(timers.white);
+    document.getElementById('black-timer').textContent = formatTime(timers.black);
+  }
+  
+  function formatTime(time) {
+    const minutes = Math.floor(time / 60);
+    const seconds = time % 60;
+    return minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+  }
+  
+  socket.on('newMove', function(move) {
+    game.move(move);
+    board.position(game.fen());
+    updateStatus();
+    switchTurn();
+});
+
+socket.on('updateTimers', function(timers) {
+    document.getElementById('white-timer').textContent = formatTime(timers.white);
+    document.getElementById('black-timer').textContent = formatTime(timers.black);
+});
+
+socket.on('timeOut', function(turn) {
+    alert(turn + " loses on time!");
+    gameOver = true;
+    updateStatus();
+});
+
+
 function onDragStart (source, piece, position, orientation) {
     // do not pick up pieces if the game is over
     if (game.game_over()) return false
@@ -89,6 +141,10 @@ function updateStatus () {
         
     }
 
+    if (game.in_checkmate() || game.in_draw() || gameOver) {
+        clearInterval(window.timerInterval);
+    }
+
     $status.html(status)
     $pgn.html(game.pgn())
 }
@@ -117,7 +173,8 @@ if (urlParams.get('code')) {
 
 socket.on('startGame', function() {
     gameHasStarted = true;
-    updateStatus()
+    startTimer(); // Make sure this starts the local timer correctly
+    updateStatus();
 });
 
 socket.on('gameOverDisconnect', function() {
